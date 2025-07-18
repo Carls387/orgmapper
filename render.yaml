@@ -1,1 +1,25 @@
+services:
+  - type: web
+    name: employee-finder-backend
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python app.py"
+    envVars:
+      - key: CLIENT_ID
+        value: 78kgr4jg9aw2gm
+      - key: CLIENT_SECRET
+        value: WPL_AP1.CjhUh2deVtOPiUZ1.EXWKMg==
+    plan: free
+    autoDeploy: true
+    rootDir: backend
+
+  - type: web
+    name: employee-finder-frontend
+    env: node
+    buildCommand: "npm install && npm run build"
+    startCommand: "npx serve -s build"
+    staticPublishPath: build
+    plan: free
+    autoDeploy: true
+    rootDir: frontend
 
