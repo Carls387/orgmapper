@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 
+const BACKEND_URL = 'https://orgmapper2.onrender.com';
+
 export default function App() {
   const [company, setCompany] = useState('');
   const [results, setResults] = useState([]);
@@ -11,7 +13,7 @@ export default function App() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/search?company=${encodeURIComponent(company)}`);
+      const res = await fetch(`${BACKEND_URL}/api/search?company=${encodeURIComponent(company)}`);
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
       setResults(data);
@@ -60,4 +62,3 @@ export default function App() {
     </div>
   );
 }
-
