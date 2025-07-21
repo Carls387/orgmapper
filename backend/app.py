@@ -1,46 +1,94 @@
-# backend/app.py
-from flask_cors import CORS
+from flask import Flask, redirect, request, jsonify
+import requests
+import urllib.parse
 
 app = Flask(__name__)
-CORS(app)
 
-CLIENT_ID = os.getenv("CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-API_ENDPOINT = "https://api.example.com/employees"  # Replace with actual API URL
+CLIENT_ID = "78kgr4jg9aw2gm"
+CLIENT_SECRET = "WPL_AP1.CjhUh2deVtOPiUZ1.EXWKMg=="
+REDIRECT_URI = "http://localhost:5000/linkedin/callback"
 
-@app.route("/api/search", methods=["GET"])
-def search_employees():
-    company = request.args.get("company")
-    if not company:
-        return jsonify({"error": "Company parameter is required"}), 400
 
-    headers = {
-        "Client-ID": CLIENT_ID,
-        "Client-Secret": CLIENT_SECRET,
-        "Accept": "application/json"
+@app.route('/')
+def home():
+    return '<a href="/linkedin/login">Connect with LinkedIn</a>'
+
+
+@app.route('/linkedin/login')
+def linkedin_login():
+    auth_url = "https://www.linkedin.com/oauth/v2/authorization"
+    params = {
+        "response_type": "code",
+        "client_id": CLIENT_ID,
+        "redirect_uri": REDIRECT_URI,
+        "scope": "r_liteprofile r_emailaddress",
+        "state": "abc123"
     }
-    params = {"company": company}
+    url = f"{auth_url}?{urllib.parse.urlencode(params)}"
+    return redirect(url)
 
-    try:
-        response = requests.get(API_ENDPOINT, headers=headers, params=params)
-        response.raise_for_status()
-        employees = response.json()
 
-        # Filter and format the data
-        result = [
-            {
-                "name": emp.get("name"),
-                "job_title": emp.get("title"),
-                "company": emp.get("company"),
-                "linkedin": emp.get("linkedin_url")
-            }
-            for emp in employees.get("results", [])
-        ]
-        return jsonify(result)
+@app.route('/linkedin/callback')
+def linkedin_callback():
+    code = request.args.get('code')
+    if not code:
+        return "Error: no code received", 400
 
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": str(e)}), 500
+    token_url = "https://www.linkedin.com/oauth/v2/accessToken"
+    data = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": REDIRECT_URI,
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET
+    }
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    response = requests.post(token_url, data=data, headers={
+        "Content-Type": "application/x-www-form-urlencoded"
+    })
 
+    if response.status_code != 200:
+        return f"Error fetching access token: {response.text}", 400
+
+    access_token = response.json().get("access_token")
+    return redirect(f"/linkedin/profile?token={access_token}")
+
+
+@app.route('/linkedin/profile')
+def linkedin_profile():
+    token = request.args.get("token")
+    if not token:
+        return "Missing token", 400
+
+    profile_url = "https://api.linkedin.com/v2/me"
+    headers = {"Authorization": f"Bearer {token}"}
+    profile = requests.get(profile_url, headers=headers)
+
+    if profile.status_code != 200:
+        return f"Error fetching profile: {profile.text}", 400
+
+    return jsonify(profile.json())
+
+
+@app.route('/linkedin/validate_token')
+def validate_token():
+    token = request.args.get('token')
+    if not token:
+        return "Missing token", 400
+
+    introspect_url = "https://www.linkedin.com/oauth/v2/introspectToken"
+    response = requests.post(
+        introspect_url,
+        data={
+            "client_id": CLIENT_ID,
+            "client_secret": CLIENT_SECRET,
+            "token": token
+        },
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
+    )
+
+    return jsonify(response.json())
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
